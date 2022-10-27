@@ -541,3 +541,4 @@ for entry in all_files:
                 dataframe = dataframe.drop(['Energy charge', 'Energy discharge', 'Capacitance charge', 'Capacitance discharge'], axis = 1)                   
             data = CP()
 
+print('Done!')
