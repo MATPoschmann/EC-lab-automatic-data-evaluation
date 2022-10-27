@@ -14,6 +14,9 @@ import os
 import itertools
 import sys
 
+#entry of filepath
+os.chdir(input('Enter full path of data folder: '))
+
 # function to get user input in commandline. 
 # Valueinputtext is the text printed for the user to ask for entry. 
 # Valuetype is the data typa this function returns to the programm. 
