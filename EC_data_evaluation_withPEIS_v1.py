@@ -96,13 +96,14 @@ def plotofloops(datasheet, title, subfolder, x_columnname, y_columnname, x_label
     Ncolors = min(colormap.N,Ncolors)
     mapcolor = [colormap(int(x*colormap.N/Ncolors)) for x in range(Ncolors)]
     for loop, color in zip(datasheet['Loop'].unique(), itertools.product(mapcolor)):   
-        legend.append('Loop '+ str(loop))
+        legend.append(loop)
         plt.scatter(datasheet.loc[datasheet['Loop']==loop].loc[:, x_columnname], datasheet.loc[datasheet['Loop']==loop].loc[:,y_columnname], color = color)
     #axis labels
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     #legend
-    plt.legend(legend)
+    norm = mpl.colors.Normalize(vmin=1, vmax=len(legend))
+    plt.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=colormap), label='Loop')
     #plotsaving
     new_filename = str(filename) + str(title)
     new_file_path = os.path.join(path, subfolder, new_filename)     
@@ -141,8 +142,8 @@ def Eatoverloop(datasheet, subfolder, title):
 # tafelplottable needs to be a DataFrame containing the column 'j/mA/cm^2' at second last position and 'EiR' at third-last position
 def getpointsnexttoj(tafelplottable, j_value):
     tablesort = tafelplottable.iloc[(tafelplottable['j/mA/cm^2']- j_value).abs().argsort(), :]
-    linear_model=np.polyfit(tablesort.iloc[0:2,-2], tablesort.iloc[0:2,-3],1)
-    Eatvalue = linear_model[0]*j_value+linear_model[1]
+    linear_model=np.polyfit(tablesort.iloc[0:2,-2], tablesort.iloc[0:2,-3],1)    
+    Eatvalue = abs(linear_model[0])*j_value+linear_model[1]
     return Eatvalue
 
 #class is used to process all imported datafiles resulting from PEIS-technique
@@ -170,7 +171,7 @@ class PEIS():
             if Im.iloc[-1, -1] >= 0:
                 ReZ = self.REIMdf.loc[self.REIMdf['-Im(Z)'] == self.REIMdf[self.REIMdf['Loop'] == entry].iloc[:,-1].min()].reset_index(drop=True).iloc[-1, -2]
             else:
-                ReZ = self.REIMdf.loc[self.REIMdf['-Im(Z)'] == self.REIMdf[self.REIMdf['Loop'] == entry].iloc[:,-1].abs().min()].reset_index(drop=True).iloc[-1, -2]
+                ReZ = self.REIMdf.loc[self.REIMdf['-Im(Z)'].abs() == self.REIMdf[self.REIMdf['Loop'] == entry].iloc[:,-1].abs().min()].reset_index(drop=True).iloc[-1, -2]
             df.append([entry, ReZ])
         # Loop-numbers and respective Re(Z) values are put into ReZlist-DataFrame 
         self.ReZlist = pd.DataFrame(df, columns = ['Loop', 'Re(Z)'])
@@ -282,8 +283,8 @@ class CV():
             columnlist.append('Loop_' +str(int(loop))+'_I/mA')
             cut = self.CVcorrcutdf[self.CVcorrcutdf['Loop'] == loop].iloc[:, 3:5].reset_index(drop=True)
             safefile = pd.concat([safefile, cut], names = columnlist, axis = 1, join = 'outer', ignore_index= True).round(5)
-            safefile.columns = columnlist
-            safefile.to_csv(new_file_path, index = None, sep= ',')
+        safefile.columns = columnlist
+        safefile.to_csv(new_file_path, index = None, sep= ',')
         # makign graphic of data that will be saved as file
         plotofloops(self.CVcorrcutdf, '_CVplots', 'CVevaluation', 'EiR', '<I>', 'EiR /V', 'I/mA')
         return
@@ -347,8 +348,8 @@ class ModularPotentio():
         for loop in self.MPmeans['Loop'].unique():
             self.tafelplot = self.MPmeans.loc[self.MPmeans['Loop'] == loop].copy(deep=True)
             #calculating log10-values of each current value unless it is 0
-            self.tafelplot.loc[:,'log(j/mA/cm^2)'] = [np.log10(x) if x != 0 else None for x in self.tafelplot['j/mA/cm^2']] 
-            tafelfit = self.tafelplot.loc[self.tafelplot['j/mA/cm^2'] != 0].iloc[1:-1,:].reset_index(drop=True)
+            self.tafelplot.loc[:,'log(j/mA/cm^2)'] = [np.log10(x) if x > 0 else None for x in self.tafelplot['j/mA/cm^2']] 
+            tafelfit = self.tafelplot.dropna(subset = ['log(j/mA/cm^2)']).iloc[1:-1,:].reset_index(drop=True)
             fitlist = []
             # looking for lowest slope determined by 4 points within datarange
             for value in range(len(tafelfit)-3):
@@ -423,7 +424,7 @@ class ModularPotentio():
         new_file_path = os.path.join(path,'MPevaluation', new_filename)
         safefile.to_csv(new_file_path, index = None, sep= ',')
         # generating log-value-column of current values in list of mean-value-Dataframe
-        self.MPmeans['log(j/mA/cm^2)'] = [np.log10(x) if x != 0 else None for x in self.MPmeans['j/mA/cm^2']]
+        self.MPmeans['log(j/mA/cm^2)'] = [np.log10(x) if x > 0 else None for x in self.MPmeans['j/mA/cm^2']]
         #plot and save mean values of tafel curve of every loop in one graphic
         plotofloops(self.MPmeans, "_MPtafelplots.png", 'MPevaluation', 'log(j/mA/cm^2)', 'EiR', 'log(j)', 'E(RHE)/V')
         #saving dataframe with tafelslopes to text-file
@@ -510,6 +511,7 @@ area = getvalue('Electrode Area in cm^2 of "'+ str(samplename) +'": ', float)
 # for each mpr file find technique and do specific class related stuff
 for entry in all_files:
     filename  = str(entry.rsplit('.', 1)[0].split('\\')[-1])
+    print(filename)
     # MP technique is included in galvani package an returns no meta data, therefore it has to be treated differently to other techniques
     if 'MP.mpr' in entry: 
         technique = 'MP'
@@ -518,7 +520,8 @@ for entry in all_files:
         data = data.drop(['flags', 'time/s', 'I Range'], axis = 1)
         data = ModularPotentio()
     # following techniques are included in eclabfiles package and meta data (meta) and measurement data (data) can be used 
-    else:        
+    else: 
+
         data, meta = ecf.process(str(entry.split('\\')[-1]))
         dataframe = pd.DataFrame(data)
         if 'Rcmp' in dataframe.columns:
@@ -527,7 +530,8 @@ for entry in all_files:
         if technique == 'PEIS':
             data = PEIS()
             ReZlist = data.ReZlist
-            data.ReZlist.to_csv('Re(Z) from PEIS.txt')
+            
+            data.ReZlist.to_csv(str(filename) + '_Re(Z)_list.txt', index = False)
         if technique == 'OCV':
             data = OCV()
         if technique == 'ZIR':
