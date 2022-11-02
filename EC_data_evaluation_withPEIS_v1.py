@@ -8,6 +8,7 @@ import pandas as pd
 import eclabfiles as ecf
 from galvani import BioLogic
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 import glob
 import os
