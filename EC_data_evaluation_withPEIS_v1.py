@@ -495,7 +495,7 @@ class CP():
         for value in ReZlist['Loop']:            
             self.CPcorrdf.loc[self.CPcorrdf['Loop'] == value, 'Re(Z)'] = correction[int(value)]
         # correcting the voltage of  Ewe by Reference elektrode, OER potential and resistivity measured with PEIS and putting the values in new column called Eta
-        self.CPcorrdf['Eta'] = self.CPdf['Ewe'] - RefElek -1.23 - (self.CPdf['Re(Z)'] * self.CPdf['I']/1000)
+        self.CPcorrdf['Eta'] = self.CPdf['Ewe'] - RefElek -1.23 - (self.CPdf['Re(Z)'] * Is/1000)
         # generating new time-column that starts at 0 for every new loop
         time = []
         for loop in self.CPcorrdf['Loop'].unique():
@@ -587,7 +587,8 @@ for entry in all_files:
         if technique == 'CP':
             if 'Energy charge' in dataframe.columns:
                 dataframe = dataframe.drop(['Energy charge', 'Energy discharge', 'Capacitance charge', 'Capacitance discharge'], axis = 1)                   
-            data = CP()
             Is = meta['params'][0]['Is']
+            data = CP()
+            
 
 print('Done!')
