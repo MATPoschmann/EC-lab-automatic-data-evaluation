@@ -53,7 +53,7 @@ def plotandfit(X, Y, fit_a, fit_b, fitparam, subfolder, title):
     plt.xlabel('log(j)')
     plt.ylabel(r'$eta$ /mV')
     #legend
-    plt.text(0,Y.max(),fitparam)
+    plt.text(X.min(),Y.max()*1000,fitparam)
     #plotsaving
     new_filename = str(filename) + str(title)
     new_file_path = os.path.join(path, subfolder, new_filename)
@@ -103,7 +103,7 @@ def plotofloops(datasheet, title, subfolder, x_columnname, y_columnname, x_label
     plt.ylabel(y_label)
     #legend
     norm = mpl.colors.Normalize(vmin=1, vmax=len(legend))
-    plt.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=colormap), label='Loop')
+    plt.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=colormap), label='Loop', ax=plt.gca())
     #plotsaving
     new_filename = str(filename) + str(title)
     new_file_path = os.path.join(path, subfolder, new_filename)     
@@ -133,7 +133,7 @@ def plotofloopsCV(datasheet, title, subfolder, x_columnname, y_columnname, x_lab
     plt.ylabel(y_label)
     #legend
     norm = mpl.colors.Normalize(vmin=1, vmax=len(legend))
-    plt.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=colormap), label='Loop')
+    plt.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=colormap), label='Loop', ax=plt.gca())
     #plotsaving
     new_filename = str(filename) + str(title)
     new_file_path = os.path.join(path, subfolder, new_filename)     
@@ -164,6 +164,7 @@ def Eatoverloop(datasheet, subfolder, title):
     new_filename = str(filename) + str(title)
     new_file_path = os.path.join(path, subfolder, new_filename)     
     plt.savefig(new_file_path, dpi = 300)
+    datasheet.to_csv(str(new_file_path) + '.txt')
     plt.close()
 
 
@@ -322,7 +323,7 @@ class CV():
         safefile.columns = columnlist
         safefile.to_csv(new_file_path, index = None, sep= ',')
         # makign graphic of data that will be saved as file
-        plotofloopsCV(self.CVcorrcutdf, '_CVplots', 'CVevaluation', 'Eta', '<I>', r'$Eta$ /V', 'I/mA')
+        plotofloopsCV(self.CVcorrcutdf, '_CVplots', 'CVevaluation', 'Eta', '<I>', r'$Eta$ /mV', 'I/mA')
         return
 
 #class is used to process all imported datafiles resulting from Modular Potentio-technique    
@@ -399,20 +400,21 @@ class ModularPotentio():
             fitlist = pd.DataFrame(fitlist, columns = ['slope', 'y_at_x=0']).abs().sort_values('slope').reset_index(drop=True)
             # finding and saving only lowest determined slope within datarange
             tafelcurve = fitlist.iloc[0,:]
+            LoopCurrentMax = self.MPmeans.loc[self.MPmeans['Loop'] == loop].loc[:,'j/mA/cm^2'].max()
             #determining potential values at defined current values
-            if self.MPmeans['j/mA/cm^2'].max() <= 10: 
+            if LoopCurrentMax <= 10: 
                 Eat5 = getpointsnexttoj(self.tafelplot, 5)
                 Eat10 = tafelcurve.iloc[0] + tafelcurve.iloc[1]
                 Eat50 = None
                 Eat100 = None
                 Eat10valid = 'extrapolated'
-            elif self.MPmeans['j/mA/cm^2'].max() <= 50:
+            elif LoopCurrentMax <= 50:
                 Eat5 = getpointsnexttoj(self.tafelplot, 5)
                 Eat10 = getpointsnexttoj(self.tafelplot, 10)
                 Eat50 = None
                 Eat100 = None
                 Eat10valid = 'valid'
-            elif self.MPmeans['j/mA/cm^2'].max() <= 100:
+            elif LoopCurrentMax <= 100:
                 Eat5 = getpointsnexttoj(self.tafelplot, 5)
                 Eat10 = getpointsnexttoj(self.tafelplot, 10)
                 Eat50 = getpointsnexttoj(self.tafelplot, 50)
@@ -431,7 +433,7 @@ class ModularPotentio():
         # making tafelplot data to DataFrame
         self.tafellist = pd.DataFrame(tafellist, columns = ['Loop', 'Tafelslope', 'y_at_x=0', r'$eta$_at_5mA/cm2', r'$eta$_at_10mA/cm2', r'$eta$_at_50mA/cm2', r'$eta$_at_100mA/cm2', r'$eta$_at_10 mA/cm2 in datarange'])   
         # ploting and saving every Eat value to a loop dependend graphic
-        Eatoverloop(self.tafellist.dropna(axis=1), 'MPevaluation', '_EtaoverLoop')
+        Eatoverloop(self.tafellist, 'MPevaluation', '_EtaoverLoop')
         #plotting and saving the determined tafelslope dependend on the loop number
         plotsave(self.tafellist['Loop'], self.tafellist['Tafelslope'], 'MPevaluation', '_Tafelslopevsloop', 'Loop', 'Tafel slope / mV/dec')
         # following lines create and save a dataframe with current-potential-value-pair for each loop as columns to be saved in subfolder
@@ -495,7 +497,7 @@ class CP():
         for value in ReZlist['Loop']:            
             self.CPcorrdf.loc[self.CPcorrdf['Loop'] == value, 'Re(Z)'] = correction[int(value)]
         # correcting the voltage of  Ewe by Reference elektrode, OER potential and resistivity measured with PEIS and putting the values in new column called Eta
-        self.CPcorrdf['Eta'] = self.CPdf['Ewe'] - RefElek -1.23 - (self.CPdf['Re(Z)'] * Is/1000)
+        self.CPcorrdf['Eta'] = self.CPdf['Ewe'] - RefElek -1.23 -(self.CPdf['Re(Z)'] * Is/1000)
         # generating new time-column that starts at 0 for every new loop
         time = []
         for loop in self.CPcorrdf['Loop'].unique():
@@ -547,7 +549,7 @@ samplename = str(all_files[0].rsplit('.', 1)[0].split('\\')[-1].rsplit('_', 2)[0
 #ask for potential of current reference electrode
 RefElek = None # getvalue('Potential of reference electrode in V: ', float) 
 #ask for area of current working electrode
-area = getvalue('Electrode Area in cm^2 of "'+ str(samplename) +'": ', float) 
+area = getvalue('Geometric Electrode Area in cm^2 of "'+ str(samplename) +'": ', float)
 # for each mpr file find technique and do specific class related stuff
 for entry in all_files:
     filename  = str(entry.rsplit('.', 1)[0].split('\\')[-1])
@@ -588,6 +590,7 @@ for entry in all_files:
             if 'Energy charge' in dataframe.columns:
                 dataframe = dataframe.drop(['Energy charge', 'Energy discharge', 'Capacitance charge', 'Capacitance discharge'], axis = 1)                   
             Is = meta['params'][0]['Is']
+            print(Is)
             data = CP()
             
 
